@@ -1,5 +1,5 @@
 import React from "react";
-import type { AppSettings, ComputeMode, TranscriptionPreset } from "../types/contracts";
+import type { AiProvider, AppSettings, ComputeMode, TranscriptionPreset } from "../types/contracts";
 
 interface SettingsModalProps {
   open: boolean;
@@ -58,6 +58,30 @@ export function SettingsModal({
     return "Not downloaded";
   };
 
+  const setAiProvider = (provider: AiProvider) => {
+    if (provider === "ollama") {
+      onChange({
+        ...settings,
+        aiProvider: "ollama",
+        aiModel: settings.aiProvider === "ollama" && settings.aiModel ? settings.aiModel : "llama3.1:8b"
+      });
+      return;
+    }
+    if (provider === "ollama_cloud") {
+      onChange({
+        ...settings,
+        aiProvider: "ollama_cloud",
+        aiModel: settings.aiProvider === "ollama_cloud" && settings.aiModel ? settings.aiModel : "gpt-oss:120b-cloud"
+      });
+      return;
+    }
+    onChange({
+      ...settings,
+      aiProvider: "openai",
+      aiModel: settings.aiProvider === "openai" && settings.aiModel ? settings.aiModel : "gpt-4o-mini"
+    });
+  };
+
   return (
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal" onClick={(e) => e.stopPropagation()}>
@@ -108,6 +132,32 @@ export function SettingsModal({
         </div>
         <details className="advanced">
           <summary>Advanced</summary>
+          <label>
+            AI Provider
+            <select value={settings.aiProvider} onChange={(e) => setAiProvider(e.target.value as AiProvider)}>
+              <option value="ollama">Ollama (Local)</option>
+              <option value="ollama_cloud">Ollama Cloud</option>
+              <option value="openai">OpenAI</option>
+            </select>
+          </label>
+          <label>
+            AI Model
+            <input
+              type="text"
+              value={settings.aiModel}
+              onChange={(e) => set("aiModel", e.target.value)}
+              placeholder={
+                settings.aiProvider === "ollama"
+                  ? "llama3.1:8b"
+                  : settings.aiProvider === "ollama_cloud"
+                    ? "gpt-oss:120b-cloud"
+                    : "gpt-4o-mini"
+              }
+            />
+          </label>
+          <div className="model-status">
+            Context snippets are always included in AI answers for both providers.
+          </div>
           <label>
             Compute Mode
             <select value={settings.computeMode} onChange={(e) => set("computeMode", e.target.value as ComputeMode)}>

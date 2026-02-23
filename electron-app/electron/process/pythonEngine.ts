@@ -18,6 +18,7 @@ export class PythonEngineProcess {
   private usingExternalServer = false;
   private startPromise: Promise<void> | null = null;
   private stopPromise: Promise<void> | null = null;
+  private throttledLogLastTs: Record<string, number> = {};
 
   constructor(private readonly options: PythonEngineOptions) {}
 
@@ -216,14 +217,14 @@ export class PythonEngineProcess {
     child.stderr.on("data", (chunk) => {
       const text = String(chunk);
       if (text.trim()) {
-        process.stderr.write(`[python] ${text}`);
+        this.writeThrottledPythonLog(text, "stderr");
       }
     });
 
     child.stdout.on("data", (chunk) => {
       const text = String(chunk);
       if (text.trim()) {
-        process.stdout.write(`[python] ${text}`);
+        this.writeThrottledPythonLog(text, "stdout");
       }
     });
 
@@ -284,5 +285,30 @@ export class PythonEngineProcess {
     if (!started) {
       throw new Error("Python did not start");
     }
+  }
+
+  private writeThrottledPythonLog(text: string, stream: "stdout" | "stderr"): void {
+    const now = Date.now();
+    const throttledPatterns = [
+      "VAD filter removed",
+      "Processing audio with duration",
+    ];
+    for (const pattern of throttledPatterns) {
+      if (!text.includes(pattern)) {
+        continue;
+      }
+      const lastTs = this.throttledLogLastTs[pattern] ?? 0;
+      if (now - lastTs < 5_000) {
+        return;
+      }
+      this.throttledLogLastTs[pattern] = now;
+      break;
+    }
+
+    if (stream === "stderr") {
+      process.stderr.write(`[python] ${text}`);
+      return;
+    }
+    process.stdout.write(`[python] ${text}`);
   }
 }

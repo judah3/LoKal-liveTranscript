@@ -3,7 +3,7 @@ import { Toolbar } from "./components/Toolbar";
 import { LivePanel } from "./components/LivePanel";
 import { SettingsModal } from "./components/SettingsModal";
 import { useEngineSocket } from "./hooks/useEngineSocket";
-import type { AppSettings, AudioDevice } from "./types/contracts";
+import type { AppSettings, AudioDevice, TranscriptLine } from "./types/contracts";
 
 const SETTINGS_STORAGE_KEY = "suggest_ai.transcribe.settings.v1";
 
@@ -14,7 +14,9 @@ const defaultSettings: AppSettings = {
   transcriptionPreset: "custom",
   enableNlp: true,
   enableRawWhisper: false,
-  enableVad: true
+  enableVad: true,
+  aiProvider: "ollama",
+  aiModel: "llama3.1:8b"
 };
 
 export function App() {
@@ -148,10 +150,22 @@ export function App() {
         ? "Stopping capture..."
         : "Starting capture..."
       : undefined;
-  const transcriptLines = settings.enableRawWhisper ? state.rawTranscriptLines : state.transcriptLines;
+  const transcriptLines: TranscriptLine[] = settings.enableRawWhisper
+    ? state.rawTranscriptLines.map((text) => ({ text }))
+    : state.transcriptLines;
   const transcriptionPartialLabel = formatTranscriptionPartialLabel(state.partialPhase, state.partialConfidence);
-  const currentTranscriptFinal = String(transcriptLines[transcriptLines.length - 1] ?? "").trim();
+  const latestLine = transcriptLines[transcriptLines.length - 1];
+  const currentTranscriptFinal = String(latestLine?.text ?? "").trim();
+  const currentTranscriptFinalIsQuestion = Boolean(latestLine?.isQuestion);
   const retainedTranscriptFinal = useRetainedCaptionLine(currentTranscriptFinal, liveCaptionMode);
+  const answerPanelPartial = formatAnswerPanelPartial(state.questionStatus, state.latestQuestionText);
+  const answerPanelPartialLabel = formatAnswerPanelLabel(state.questionStatus);
+  const answerPanelStatus = formatAnswerPanelStatus(state.questionStatus);
+  const answerPanelSubtitle = `${state.answerLines.length} ${state.answerLines.length === 1 ? "answer" : "answers"}`;
+  const transcriptionPanelStatus = activeAudio ? "Live" : listening ? "Idle" : "Stopped";
+  const transcriptionPanelSubtitle = `${transcriptLines.length} ${transcriptLines.length === 1 ? "line" : "lines"}`;
+  const aiStatus = formatAiStatus(settings.aiProvider, settings.aiModel, state.questionStatus, state.latestQuestionError);
+  const transcriptionStatus = formatTranscriptionModelStatus(state.transcriptionModelStatus);
   const statusDetail =
     audioError ||
     state.lastError ||
@@ -159,8 +173,8 @@ export function App() {
       ? `Initializing services... ${loadingInfo}`
       : isTogglingCapture
         ? (listening ? "Stopping capture..." : "Starting capture...")
-        : "") ||
-    `${state.runtimeDevice ? `Mode: ${state.runtimeDevice}/${state.runtimeComputeType || "auto"} | ` : ""}Latency: ${state.latencyMs}ms | RMS: ${(state.rms ?? 0).toFixed(4)}`;
+      : "") ||
+    `${state.runtimeDevice ? `Mode: ${state.runtimeDevice}/${state.runtimeComputeType || "auto"} | ` : ""}Transcriber: ${transcriptionStatus} | ${aiStatus} | Latency: ${state.latencyMs}ms | RMS: ${(state.rms ?? 0).toFixed(4)}`;
   const hasError = Boolean(audioError || state.lastError);
 
   const handleToggleListening = async () => {
@@ -199,15 +213,34 @@ export function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onClear={clear}
       />
-      <div className="grid compact-grid">
+      <div className="grid">
+        <LivePanel
+          title="Answers to Questions"
+          subtitle={answerPanelSubtitle}
+          statusPill={answerPanelStatus}
+          animateNewCards
+          lines={state.answerLines}
+          partial={answerPanelPartial}
+          partialLoadingLabel={answerPanelPartialLabel}
+          captionMode={false}
+          speechActive={false}
+          currentFinalText=""
+          currentFinalIsQuestion={false}
+          retainedFinalText=""
+          retainedFinalFading={false}
+        />
         <LivePanel
           title="Live Transcription"
+          subtitle={transcriptionPanelSubtitle}
+          statusPill={transcriptionPanelStatus}
           lines={transcriptLines}
           partial={state.partialText}
+          partialIsQuestion={state.partialIsQuestion}
           partialLoadingLabel={transcriptionPartialLabel}
           captionMode={liveCaptionMode}
           speechActive={activeAudio}
           currentFinalText={currentTranscriptFinal}
+          currentFinalIsQuestion={currentTranscriptFinalIsQuestion}
           retainedFinalText={retainedTranscriptFinal.text}
           retainedFinalFading={retainedTranscriptFinal.fading}
         />
@@ -320,6 +353,10 @@ function loadPersistedSettings(): AppSettings {
       parsed.transcriptionPreset === "custom"
         ? parsed.transcriptionPreset
         : defaultSettings.transcriptionPreset;
+    const aiProvider =
+      parsed.aiProvider === "ollama" || parsed.aiProvider === "ollama_cloud" || parsed.aiProvider === "openai"
+        ? parsed.aiProvider
+        : defaultSettings.aiProvider;
     return {
       sourceLanguage: typeof parsed.sourceLanguage === "string" && parsed.sourceLanguage ? parsed.sourceLanguage : defaultSettings.sourceLanguage,
       whisperModel: typeof parsed.whisperModel === "string" && parsed.whisperModel ? parsed.whisperModel : defaultSettings.whisperModel,
@@ -328,7 +365,9 @@ function loadPersistedSettings(): AppSettings {
       enableNlp: typeof parsed.enableNlp === "boolean" ? parsed.enableNlp : defaultSettings.enableNlp,
       enableRawWhisper:
         typeof parsed.enableRawWhisper === "boolean" ? parsed.enableRawWhisper : defaultSettings.enableRawWhisper,
-      enableVad: typeof parsed.enableVad === "boolean" ? parsed.enableVad : defaultSettings.enableVad
+      enableVad: typeof parsed.enableVad === "boolean" ? parsed.enableVad : defaultSettings.enableVad,
+      aiProvider,
+      aiModel: typeof parsed.aiModel === "string" && parsed.aiModel ? parsed.aiModel : defaultSettings.aiModel
     };
   } catch {
     return defaultSettings;
@@ -385,4 +424,87 @@ function formatTranscriptionPartialLabel(
     return score ? `Refined ${score}` : "Refined";
   }
   return "Transcribing...";
+}
+
+function formatTranscriptionModelStatus(
+  status?: "not_downloaded" | "downloading" | "ready"
+): string {
+  if (status === "downloading") {
+    return "downloading";
+  }
+  if (status === "ready") {
+    return "ready";
+  }
+  if (status === "not_downloaded") {
+    return "not downloaded";
+  }
+  return "unknown";
+}
+
+function formatAiStatus(
+  provider: string,
+  model: string,
+  questionStatus?: "idle" | "queued" | "processing" | "answered" | "error",
+  questionError?: string
+): string {
+  const providerLabel =
+    provider === "ollama_cloud"
+      ? "ollama-cloud"
+      : provider === "ollama"
+        ? "ollama-local"
+        : "openai";
+  if (questionStatus === "processing" || questionStatus === "queued") {
+    return `AI: ${providerLabel}/${model} (answering...)`;
+  }
+  if (questionStatus === "error") {
+    return `AI: ${providerLabel}/${model} (error: ${questionError || "failed"})`;
+  }
+  if (questionStatus === "answered") {
+    return `AI: ${providerLabel}/${model} (answered)`;
+  }
+  return `AI: ${providerLabel}/${model} (idle)`;
+}
+
+function formatAnswerPanelPartial(
+  questionStatus?: "idle" | "queued" | "processing" | "answered" | "error",
+  latestQuestionText?: string
+): string | undefined {
+  if (questionStatus !== "queued" && questionStatus !== "processing") {
+    return undefined;
+  }
+  const q = (latestQuestionText || "").trim();
+  if (q) {
+    return `Generating answer for: ${q}`;
+  }
+  return "Generating answer...";
+}
+
+function formatAnswerPanelLabel(
+  questionStatus?: "idle" | "queued" | "processing" | "answered" | "error"
+): string {
+  if (questionStatus === "queued") {
+    return "Queued";
+  }
+  if (questionStatus === "processing") {
+    return "Answering...";
+  }
+  return "Ready";
+}
+
+function formatAnswerPanelStatus(
+  questionStatus?: "idle" | "queued" | "processing" | "answered" | "error"
+): string {
+  if (questionStatus === "queued") {
+    return "Queued";
+  }
+  if (questionStatus === "processing") {
+    return "Answering";
+  }
+  if (questionStatus === "answered") {
+    return "Updated";
+  }
+  if (questionStatus === "error") {
+    return "Error";
+  }
+  return "Ready";
 }

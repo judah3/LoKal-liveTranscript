@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, Menu } from "electron";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { AudioServiceProcess } from "./process/audioService";
 import { PythonEngineProcess } from "./process/pythonEngine";
@@ -10,6 +11,55 @@ let backendsRunning = false;
 let backendStartPromise: Promise<void> | null = null;
 let backendStopPromise: Promise<void> | null = null;
 let backendLeaseCount = 0;
+
+function loadEnvFiles(): void {
+  const repoRoot = resolveRepoRoot();
+  const candidates = [
+    path.join(repoRoot, ".env"),
+    path.join(repoRoot, "electron-app", ".env"),
+    path.join(process.cwd(), ".env"),
+    path.join(process.resourcesPath, "runtime", ".env")
+  ];
+
+  for (const filePath of candidates) {
+    if (!existsSync(filePath)) {
+      continue;
+    }
+    applyEnvFromFile(filePath);
+  }
+}
+
+function applyEnvFromFile(filePath: string): void {
+  let raw = "";
+  try {
+    raw = readFileSync(filePath, "utf-8");
+  } catch {
+    return;
+  }
+  const lines = raw.split(/\r?\n/);
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, eqIndex).trim();
+    if (!key || process.env[key] !== undefined) {
+      continue;
+    }
+    let value = trimmed.slice(eqIndex + 1).trim();
+    if (
+      (value.startsWith("\"") && value.endsWith("\"")) ||
+      (value.startsWith("'") && value.endsWith("'"))
+    ) {
+      value = value.slice(1, -1);
+    }
+    process.env[key] = value;
+  }
+}
 
 function resolveRepoRoot(): string {
   // Dev main process runs from electron-app/dist-electron.
@@ -86,6 +136,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  loadEnvFiles();
   resolveRuntimeServices();
   Menu.setApplicationMenu(null);
   createWindow();

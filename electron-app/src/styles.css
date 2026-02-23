@@ -55,7 +55,7 @@ label {
   color: var(--autumn-700);
 }
 
-select, .btn {
+select, input[type="text"], .btn {
   border-radius: 8px;
   border: 1px solid rgba(127, 114, 101, 0.35);
   background: #f3f2f8;
@@ -64,6 +64,7 @@ select, .btn {
 }
 
 select:disabled,
+input[type="text"]:disabled,
 .btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
@@ -136,6 +137,31 @@ select:disabled,
   font-weight: 700;
 }
 
+.panel-header-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.panel-header-subtitle {
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--autumn-700);
+}
+
+.panel-status-pill {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--autumn-900);
+  background: rgba(226, 225, 235, 0.9);
+  border: 1px solid rgba(127, 114, 101, 0.34);
+  border-radius: 999px;
+  padding: 3px 8px;
+  white-space: nowrap;
+}
+
 .panel-body {
   min-height: 0;
   height: 100%;
@@ -155,7 +181,51 @@ select:disabled,
   margin: 0;
 }
 
+.panel-line.qa-card {
+  border: 1px solid rgba(127, 114, 101, 0.22);
+  background: rgba(255, 255, 255, 0.74);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+}
+
+.panel-line.qa-card.qa-card-enter {
+  animation: qaCardEnter 700ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .panel-line.loading {
+  color: var(--autumn-700);
+  font-style: italic;
+}
+
+.panel-line.question,
+.panel-partial.question,
+.caption-current-final.question {
+  color: #8f3d32;
+  font-weight: 600;
+}
+
+.qa-question-label {
+  color: #8f3d32;
+  font-weight: 700;
+}
+
+.qa-question-text {
+  color: #6e433b;
+  font-weight: 600;
+}
+
+.qa-answer-label {
+  color: #2f5f4f;
+  font-weight: 700;
+}
+
+.qa-answer-text {
+  color: #20473d;
+  font-weight: 500;
+}
+
+.panel-empty {
   color: var(--autumn-700);
   font-style: italic;
 }
@@ -249,6 +319,19 @@ select:disabled,
   0% { opacity: 0.35; transform: scale(0.9); }
   50% { opacity: 1; transform: scale(1.05); }
   100% { opacity: 0.35; transform: scale(0.9); }
+}
+
+@keyframes qaCardEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+    filter: saturate(0.92);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: saturate(1);
+  }
 }
 
 .status-bar {

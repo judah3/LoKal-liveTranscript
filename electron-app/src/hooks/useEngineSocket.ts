@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { AppSettings, CaptureState, EngineEvent } from "../types/contracts";
+import type { AppSettings, CaptureState, EngineEvent, TranscriptLine } from "../types/contracts";
 
 const STREAM_FLUSH_MS = 50;
 const RECONNECT_BASE_MS = 900;
@@ -11,6 +11,8 @@ const URGENT_EVENTS = new Set<EngineEvent["type"]>([
   "model_status",
   "transcription_partial",
   "transcription_final",
+  "question_status",
+  "question_suggestion",
   "error"
 ]);
 
@@ -20,10 +22,14 @@ const initialState: CaptureState = {
   rms: 0,
   latencyMs: 0,
   partialText: "",
+  partialIsQuestion: undefined,
+  partialQuestionScore: undefined,
   partialPhase: undefined,
   partialConfidence: undefined,
   rawTranscriptLines: [],
-  transcriptLines: []
+  transcriptLines: [],
+  answerLines: [],
+  questionStatus: "idle"
 };
 
 export function useEngineSocket(settings: AppSettings, options?: { liveCaptionMode?: boolean }) {
@@ -40,7 +46,13 @@ export function useEngineSocket(settings: AppSettings, options?: { liveCaptionMo
 
   useEffect(() => {
     liveCaptionModeRef.current = liveCaptionMode;
-    setState((prev) => trimConversationLines(prev, liveCaptionMode ? CAPTION_MODE_MAX_LINES : MAX_CONVERSATION_LINES));
+    setState((prev) =>
+      trimConversationLines(
+        prev,
+        liveCaptionMode ? CAPTION_MODE_MAX_LINES : MAX_CONVERSATION_LINES,
+        MAX_CONVERSATION_LINES
+      )
+    );
   }, [liveCaptionMode]);
 
   useEffect(() => {
@@ -156,7 +168,14 @@ export function useEngineSocket(settings: AppSettings, options?: { liveCaptionMo
     []
   );
 
-  return { state: trimConversationLines(state, liveCaptionMode ? CAPTION_MODE_MAX_LINES : MAX_CONVERSATION_LINES), ...api };
+  return {
+    state: trimConversationLines(
+      state,
+      liveCaptionMode ? CAPTION_MODE_MAX_LINES : MAX_CONVERSATION_LINES,
+      MAX_CONVERSATION_LINES
+    ),
+    ...api
+  };
 }
 
 function reduceState(prev: CaptureState, msg: EngineEvent): CaptureState {
@@ -175,6 +194,8 @@ function reduceState(prev: CaptureState, msg: EngineEvent): CaptureState {
       return {
         ...prev,
         partialText: String(msg.payload.text ?? ""),
+        partialIsQuestion: toBoolean(msg.payload.isQuestion, prev.partialIsQuestion),
+        partialQuestionScore: toFiniteNumber(msg.payload.questionScore, prev.partialQuestionScore),
         partialPhase: toPartialPhase(msg.payload.phase, prev.partialPhase),
         partialConfidence: toFiniteNumber(msg.payload.confidence, prev.partialConfidence),
         latencyMs: Number(msg.payload.latencyMs ?? prev.latencyMs)
@@ -202,10 +223,14 @@ function reduceState(prev: CaptureState, msg: EngineEvent): CaptureState {
       };
     case "transcription_final": {
       const text = String(msg.payload.text ?? "");
+      const isQuestion = toBoolean(msg.payload.isQuestion, false);
+      const questionScore = toFiniteNumber(msg.payload.questionScore);
       if (!text.trim() || isDuplicateFinalLine(prev.transcriptLines, text)) {
         return {
           ...prev,
           partialText: "",
+          partialIsQuestion: undefined,
+          partialQuestionScore: undefined,
           partialPhase: undefined,
           partialConfidence: undefined,
           latencyMs: Number(msg.payload.latencyMs ?? prev.latencyMs)
@@ -213,11 +238,49 @@ function reduceState(prev: CaptureState, msg: EngineEvent): CaptureState {
       }
       return {
         ...prev,
-        transcriptLines: [...prev.transcriptLines, text],
+        transcriptLines: [...prev.transcriptLines, { text, isQuestion, questionScore }],
         partialText: "",
+        partialIsQuestion: undefined,
+        partialQuestionScore: undefined,
         partialPhase: undefined,
         partialConfidence: undefined,
         latencyMs: Number(msg.payload.latencyMs ?? prev.latencyMs)
+      };
+    }
+    case "question_suggestion": {
+      const question = String(msg.payload.question ?? "").trim();
+      const suggestion = String(msg.payload.suggestion ?? "").trim();
+      if (!suggestion) {
+        return prev;
+      }
+      const answerLine: TranscriptLine = {
+        text: question ? `Q: ${question}\nA: ${suggestion}` : suggestion
+      };
+      if (isDuplicateAnswerLine(prev.answerLines, answerLine.text)) {
+        return prev;
+      }
+      return {
+        ...prev,
+        answerLines: [...prev.answerLines, answerLine],
+        questionStatus: "answered",
+        latestQuestionText: question || prev.latestQuestionText,
+        latestQuestionError: undefined,
+        latestQuestionSuggestion: question ? `${question} -> ${suggestion}` : suggestion
+      };
+    }
+    case "question_status": {
+      const statusRaw = String(msg.payload.status ?? "").toLowerCase();
+      const status =
+        statusRaw === "queued" || statusRaw === "processing" || statusRaw === "answered" || statusRaw === "error"
+          ? statusRaw
+          : "idle";
+      const question = String(msg.payload.question ?? "").trim();
+      const message = String(msg.payload.message ?? "").trim();
+      return {
+        ...prev,
+        questionStatus: status,
+        latestQuestionText: question || prev.latestQuestionText,
+        latestQuestionError: status === "error" ? (message || "Question answering failed") : undefined
       };
     }
     case "error":
@@ -227,13 +290,22 @@ function reduceState(prev: CaptureState, msg: EngineEvent): CaptureState {
   }
 }
 
-function trimConversationLines(state: CaptureState, maxLines: number): CaptureState {
-  if (state.transcriptLines.length <= maxLines) {
+function trimConversationLines(state: CaptureState, transcriptMaxLines: number, answerMaxLines: number): CaptureState {
+  const nextTranscriptLines =
+    state.transcriptLines.length <= transcriptMaxLines
+      ? state.transcriptLines
+      : state.transcriptLines.slice(state.transcriptLines.length - transcriptMaxLines);
+  const nextAnswerLines =
+    state.answerLines.length <= answerMaxLines
+      ? state.answerLines
+      : state.answerLines.slice(state.answerLines.length - answerMaxLines);
+  if (nextTranscriptLines === state.transcriptLines && nextAnswerLines === state.answerLines) {
     return state;
   }
   return {
     ...state,
-    transcriptLines: state.transcriptLines.slice(state.transcriptLines.length - maxLines)
+    transcriptLines: nextTranscriptLines,
+    answerLines: nextAnswerLines
   };
 }
 
@@ -285,7 +357,7 @@ function longestCommonPrefixLength(a: string, b: string): number {
   return i;
 }
 
-function isDuplicateFinalLine(lines: string[], candidate: string): boolean {
+function isDuplicateFinalLine(lines: TranscriptLine[], candidate: string): boolean {
   const normalizedCandidate = normalizeFinalLine(candidate);
   if (!normalizedCandidate) {
     return true;
@@ -293,7 +365,7 @@ function isDuplicateFinalLine(lines: string[], candidate: string): boolean {
 
   const recent = lines.slice(Math.max(0, lines.length - 8));
   for (const line of recent) {
-    const normalizedExisting = normalizeFinalLine(line);
+    const normalizedExisting = normalizeFinalLine(line.text);
     if (!normalizedExisting) {
       continue;
     }
@@ -313,6 +385,30 @@ function isDuplicateFinalLine(lines: string[], candidate: string): boolean {
 function normalizeFinalLine(value: string): string {
   const compact = value.trim().toLowerCase().replace(/\s+/g, " ");
   return compact.replace(/[^a-z0-9 ]/g, "");
+}
+
+function isDuplicateAnswerLine(lines: TranscriptLine[], candidate: string): boolean {
+  const normalizedCandidate = normalizeFinalLine(candidate);
+  if (!normalizedCandidate) {
+    return true;
+  }
+  const recent = lines.slice(Math.max(0, lines.length - 10));
+  for (const line of recent) {
+    const normalizedExisting = normalizeFinalLine(line.text);
+    if (!normalizedExisting) {
+      continue;
+    }
+    if (normalizedCandidate === normalizedExisting) {
+      return true;
+    }
+    if (
+      normalizedCandidate.length >= 28 &&
+      (normalizedCandidate.includes(normalizedExisting) || normalizedExisting.includes(normalizedCandidate))
+    ) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function toModelStatus(
@@ -345,6 +441,22 @@ function toFiniteNumber(value: unknown, fallback?: number): number | undefined {
     const parsed = Number(value);
     if (Number.isFinite(parsed)) {
       return parsed;
+    }
+  }
+  return fallback;
+}
+
+function toBoolean(value: unknown, fallback?: boolean): boolean | undefined {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const compact = value.trim().toLowerCase();
+    if (compact === "true") {
+      return true;
+    }
+    if (compact === "false") {
+      return false;
     }
   }
   return fallback;
