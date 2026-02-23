@@ -1,0 +1,15 @@
+{
+  "venvPath": "python-engine",
+  "venv": ".venv",
+  "include": [
+    "python-engine/app"
+  ],
+  "executionEnvironments": [
+    {
+      "root": "python-engine",
+      "extraPaths": [
+        "python-engine"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "audio-service-csharp", "audio-service-csharp", "{657D7907-7E79-9ECC-B8C0-BD0AB4345079}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{343D0AEA-9451-4FAF-D910-B33E5E928EAF}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AudioCaptureService", "audio-service-csharp\src\AudioCaptureService.csproj", "{4ACD71CF-B3D1-6DA5-1076-60B29D851DEF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4ACD71CF-B3D1-6DA5-1076-60B29D851DEF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4ACD71CF-B3D1-6DA5-1076-60B29D851DEF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4ACD71CF-B3D1-6DA5-1076-60B29D851DEF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4ACD71CF-B3D1-6DA5-1076-60B29D851DEF}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{343D0AEA-9451-4FAF-D910-B33E5E928EAF} = {657D7907-7E79-9ECC-B8C0-BD0AB4345079}
+		{4ACD71CF-B3D1-6DA5-1076-60B29D851DEF} = {343D0AEA-9451-4FAF-D910-B33E5E928EAF}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {628C7525-374A-48B4-8565-1C135C72C917}
+	EndGlobalSection
+EndGlobal

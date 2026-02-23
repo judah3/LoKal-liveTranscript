@@ -1,0 +1,79 @@
+{
+  "name": "suggest-ai-electron",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Suggest AI desktop app",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "npm run build:electron && wait-on tcp:5173 && cross-env NODE_ENV=development node scripts/run-electron-dev.cjs",
+    "build": "npm run build:renderer && npm run build:electron",
+    "build:renderer": "vite build",
+    "build:electron": "tsc -p tsconfig.electron.json",
+    "typecheck": "tsc --noEmit",
+    "prepare:runtime": "powershell -ExecutionPolicy Bypass -File ../scripts/prepare-runtime.ps1",
+    "dist:win": "npm run build && npm run prepare:runtime && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --win nsis"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "ws": "^8.18.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.5",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^34.0.0",
+    "electron-builder": "^24.13.3",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.6",
+    "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "com.suggest.ai",
+    "productName": "Suggest AI",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "src/images/juda_logo.png",
+        "to": "runtime/juda_logo.png"
+      },
+      {
+        "from": "build-runtime/python-engine",
+        "to": "runtime/python-engine"
+      },
+      {
+        "from": "build-runtime/audio-service",
+        "to": "runtime/audio-service"
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "Suggest-AI-Setup-${version}.${ext}",
+      "icon": "build-assets/juda_logo_256.png",
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  }
+}

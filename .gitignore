@@ -1,0 +1,78 @@
+# OS / Editor
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+
+# Logs / temp
+*.log
+*.tmp
+tmp/
+temp/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# Node / Electron
+node_modules/
+**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Electron build output
+/electron-app/dist/
+/electron-app/dist-electron/
+/electron-app/release/
+/electron-app/build-runtime/
+/electron-app/out/
+/electron-app/installer/
+/electron-app/coverage/
+/electron-app/*.tsbuildinfo
+
+# Installer artifacts
+*.blockmap
+*.exe
+*.msi
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+*.so
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.venv/
+venv/
+/python-engine/.venv/
+
+# .NET / C#
+**/bin/
+**/obj/
+*.user
+*.suo
+*.pdb
+TestResults/
+
+# Build validation outputs
+/audio-service-csharp/_validate_out/
+
+# Models / caches / large assets
+models/
+cache/
+.cache/
+*.onnx
+*.pt
+*.pth
+*.ckpt
+*.safetensors

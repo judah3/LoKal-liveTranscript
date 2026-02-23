@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Lokal LiveTranslate</title>
+    <style>
+      html, body {
+        margin: 0;
+        min-height: 100%;
+        background: radial-gradient(circle at 20% 10%, #f5f4f9 0%, #e2e1eb 55%, #d6d4df 100%);
+      }
+      #app-boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        color: #322d27;
+        font-family: "Segoe UI", "SF Pro Text", sans-serif;
+        letter-spacing: 0.2px;
+      }
+      #app-boot .boot-card {
+        border: 1px solid rgba(127, 114, 101, 0.28);
+        background: rgba(255, 255, 255, 0.72);
+        border-radius: 12px;
+        padding: 14px 16px;
+        text-align: center;
+        font-size: 14px;
+      }
+      #app-boot .boot-sub {
+        margin-top: 6px;
+        font-size: 12px;
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app-boot" role="status" aria-live="polite">
+      <div class="boot-card">
+        <div>Loading info</div>
+        <div class="boot-sub">Starting app services...</div>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
