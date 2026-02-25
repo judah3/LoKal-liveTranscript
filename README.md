@@ -1,4 +1,4 @@
-# Suggest AI
+# LoKal liveTranscript
 
 Desktop app for local, real-time transcription on Windows.
 
